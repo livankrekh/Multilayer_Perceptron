@@ -14,3 +14,4 @@ if __name__ == "__main__":
 	nn = Multilayer_Perceptron(X, y)
 	nn.scaling()
 	nn.prop()
+	nn.backprop()
