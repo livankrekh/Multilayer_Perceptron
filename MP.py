@@ -68,12 +68,37 @@ class Multilayer_Perceptron(object):
 		self.NN.append(self.output_layer)
 
 	def backprop(self):
+		prev_error = []
+
 		for i in range(len(self.y_name)):
-			y = pd.Series(np.where(self.y == self.y_name[i], 1, 0)) - self.res[-1][i]
-			for j in range(len(self.res) - 1, 1, -1):
-				o_k = y * self.sigmoid_derivative(self.res[j - 1].dot(self.NN[j - 1][i]) + self.bias[j - 1])
-				o_k = o_k[0]
+			y = np.where(self.y == self.y_name[i], 1, 0)
 
-				self.bias[j - 1] += self.alpha * sum(o_k)
+			prev_error.append(self.res[-1][i][0] - pd.Series(y))
 
-				
+		# print(prev_error)
+
+		for i, nn in enumerate(reversed(self.NN)):
+			tmp = []
+
+			for _ in range(len(nn[0])):
+				tmp.append(0.0)
+
+			for j in range(len(nn)):
+				o_k = prev_error[j] * self.sigmoid_derivative(self.res[(i + 2) * -1].dot(nn[j]) + self.bias[(i + 1) * -1])
+
+				for k in range(len(nn[j])):
+					w = self.alpha * o_k * self.res[(i + 2) * -1][k]
+					nn[j][k] += sum(w)
+					tmp[k] += sum(o_k * nn[j][k])
+
+			prev_error = tmp
+
+				# for k in range(len(prev_error)):
+
+			# for j in range(len(prev_error)):
+			# 	err = prev_error[j] * self.sigmoid_derivative(self.res[(i + 2) * -1].dot(nn[j]) + self.bias[(i + 1) * -1])
+			# 	err = pd.DataFrame(err)
+			# 	o_k = err.dot(pd.DataFrame(nn[j]).T)
+
+			# 	print(o_k)
+
