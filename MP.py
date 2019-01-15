@@ -13,23 +13,24 @@ class Multilayer_Perceptron(object):
 		self.alpha = 0.0001
 
 		self.NN = []
-		self.output_layer = [0] * len(self.y_name)
+		self.output_layer = []
 
-		for i in range(len(self.output_layer)):
-			self.output_layer[i] = np.random.random(n_perceptrons)
+		for i in range(len(self.y_name)):
+			self.output_layer.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons))
 
 		for i in range(n_layers):
 			tmp = []
-			self.bias.append(pd.Series(np.random.random(n_perceptrons)))
+			self.bias.append(pd.Series(np.random.uniform(-0.5, 0.5, size=n_perceptrons)))
 			for j in range(n_perceptrons):
 				if (i == 0):
-					tmp.append(np.random.random(len(self.X.columns)))
+					tmp.append(np.random.uniform(-0.5, 0.5, size=len(self.X.columns)))
 				else:
-					tmp.append(np.random.random(n_perceptrons))
+					tmp.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons))
 
 			self.NN.append(tmp)
 
-		self.bias.append(pd.Series(np.random.random(len(self.y_name))))
+		self.NN.append(self.output_layer)
+		self.bias.append(pd.Series(np.random.uniform(-0.5,0.5, size=len(self.y_name))))
 
 	def scaling(self):
 		for i in self.X.columns:
@@ -51,11 +52,26 @@ class Multilayer_Perceptron(object):
 		s = np.array(X).reshape(-1,1)
 		return np.diagflat(s) - np.dot(s, np.transpose(s))
 
+	def loss(self):
+		if (len(self.res) < 1):
+			return -1
+
+		res = 0.0
+		l = 0
+
+		for i in range(len(self.y_name)):
+			y = np.where(self.y == self.y_name[i], 1, 0)
+			l += len(y)
+			for j in range(len(y)):
+				res += (y[j] * np.log(self.res[-1][i][j])) + ((1 - y[j]) * (1 - self.res[-1][i][j]))
+
+		return (res / l) * -1
+
 	def prop(self):
 		self.res = []
 		self.res.append(self.X)
 
-		for i in range(len(self.NN)):
+		for i in range(len(self.NN) - 1):
 			tmp = []
 			for j in range(len(self.NN[i])):
 				tmp.append(self.sigmoid(self.res[i].dot(self.NN[i][j]) + self.bias[i][j]))
@@ -64,16 +80,13 @@ class Multilayer_Perceptron(object):
 		last_layer = []
 
 		for i in range(len(self.y_name)):
-			tmp = self.sigmoid(self.res[-1].dot(self.output_layer[i]) + self.bias[-1][i])
+			tmp = self.sigmoid(self.res[-1].dot(self.NN[-1][i]) + self.bias[-1][i])
 			last_layer.append(pd.Series(tmp))
 
 		self.res.append(pd.DataFrame(last_layer).T)
-		self.NN.append(self.output_layer)
 
 	def backprop(self):
 		prev_error = []
-
-		print(self.NN)
 
 		for i in range(len(self.y_name)):
 			y = np.where(self.y == self.y_name[i], 1, 0)
@@ -92,10 +105,8 @@ class Multilayer_Perceptron(object):
 				for k in range(len(nn[j])):
 					current = self.res[(i + 2) * -1]
 					w = self.alpha * o_k * current[current.columns[k]]
-					nn[j][k] += sum(w)
+					nn[j][k] -= sum(w)
 					tmp[k] += sum(o_k * nn[j][k])
 
 			prev_error = tmp
-
-		print(self.NN)
 

@@ -15,5 +15,11 @@ if __name__ == "__main__":
 
 	nn = Multilayer_Perceptron(X, y)
 	nn.scaling()
+	for i in range(100):
+		print("Epoch ", i, "/100, loss - ", nn.loss(), sep='')
+		nn.prop()
+		nn.backprop()
+
+	print(nn.NN)
 	nn.prop()
-	nn.backprop()
+	print(nn.res[-1])
