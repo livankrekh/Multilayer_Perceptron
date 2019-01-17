@@ -1,31 +1,33 @@
 import pandas as pd
 import numpy as np
 
+# np.random.seed(15)
+# np.random.seed(8954) 41-47
+
 class Multilayer_Perceptron(object):
-	def __init__(self, X, y, n_perceptrons=4, n_layers=2, n_output=2):
+	def __init__(self, X, y, n_perceptrons=[4], n_output=2):
 		self.X = X
 		self.y = y
 		self.y_name = np.unique(self.y)
 		self.n_p = n_perceptrons
-		self.n_l = n_layers
 		self.res = []
 		self.bias = []
-		self.alpha = 0.0001
-
+		self.alpha = 0.04
 		self.NN = []
 		self.output_layer = []
 
 		for i in range(len(self.y_name)):
-			self.output_layer.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons))
+			self.output_layer.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons[-1]))
 
-		for i in range(n_layers):
+		for i in range(len(n_perceptrons)):
 			tmp = []
-			self.bias.append(pd.Series(np.random.uniform(-0.5, 0.5, size=n_perceptrons)))
-			for j in range(n_perceptrons):
+			self.bias.append(pd.Series(np.random.uniform(-0.5, 0.5, size=n_perceptrons[i])))
+			for j in range(n_perceptrons[i]):
 				if (i == 0):
+					# tmp.append(np.array([1] * len(self.X.columns)))
 					tmp.append(np.random.uniform(-0.5, 0.5, size=len(self.X.columns)))
 				else:
-					tmp.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons))
+					tmp.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons[i - 1]))
 
 			self.NN.append(tmp)
 
@@ -96,11 +98,15 @@ class Multilayer_Perceptron(object):
 		for i, nn in enumerate(reversed(self.NN)):
 			tmp = []
 
+			if (i == len(self.NN) - 1):
+				continue
+
 			for _ in range(len(nn[0])):
 				tmp.append(0.0)
 
 			for j in range(len(nn)):
 				o_k = prev_error[j] * self.sigmoid_derivative(self.res[(i + 2) * -1].dot(nn[j]) + self.bias[(i + 1) * -1][j])
+				self.bias[(i + 1) * -1][j] -= sum(self.alpha * o_k)
 
 				for k in range(len(nn[j])):
 					current = self.res[(i + 2) * -1]
