@@ -98,9 +98,6 @@ class Multilayer_Perceptron(object):
 		for i, nn in enumerate(reversed(self.NN)):
 			tmp = []
 
-			if (i == len(self.NN) - 1):
-				continue
-
 			for _ in range(len(nn[0])):
 				tmp.append(0.0)
 
