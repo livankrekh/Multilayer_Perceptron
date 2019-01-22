@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import sys
 
-from MP import *
+from MP import Multilayer_Perceptron
 
 pd.set_option('display.float_format', lambda x: '%.8f' % x)
 
@@ -20,6 +20,4 @@ if __name__ == "__main__":
 		nn.prop()
 		nn.backprop()
 
-	print(nn.NN)
-	nn.prop()
-	print(nn.res[-1])
+	print("Success -> ", nn.test(), "%", sep='')
