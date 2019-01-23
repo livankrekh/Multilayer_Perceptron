@@ -1,11 +1,24 @@
+import matplotlib
+matplotlib.use('TkAgg')
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
+import enum
+
 # np.random.seed(67)
-np.random.seed(8954)
+# np.random.seed(8954)
+
+class Layer(enum.IntEnum):
+	sigmoid = 0
+	tanh = 1
+	relu = 2
+	l_relu = 3
+	softmax = 4
 
 class Multilayer_Perceptron(object):
-	def __init__(self, X, y, n_perceptrons=[20,20], batch_size=20, validator=False):
+	def __init__(self, X, y, layers=[Layer.sigmoid, Layer.sigmoid, Layer.sigmoid] ,n_perceptrons=[20,20], batch_size=20, alpha=0.04, validator=False):
 		self.X = X
 		self.y = y
 		self.y_all = y
@@ -13,11 +26,16 @@ class Multilayer_Perceptron(object):
 		self.n_p = n_perceptrons
 		self.res = []
 		self.bias = []
-		self.alpha = 0.04
+		self.alpha = alpha
 		self.NN = []
 		self.output_layer = []
 		self.b_s = batch_size
 		self.valid = validator
+		self.layers = layers
+		self.losses = []
+
+		self.activation = [self.sigmoid, self.tanh, self.reLu, self.leaky_ReLu, self.softmax]
+		self.derivative = [self.sigmoid_derivative, self.tanh_derivative, self.reLu_derivative, self.leaky_ReLu_derivative, self.sigmoid_derivative]
 
 		for i in range(len(self.y_name)):
 			self.output_layer.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons[-1]))
@@ -40,21 +58,39 @@ class Multilayer_Perceptron(object):
 		for i in self.X.columns:
 			self.X[i] = (self.X[i] - self.X[i].mean()) / self.X[i].std()
 
+	def reLu(self, X):
+		return np.where(X >= 0, X, 0)
+
 	def leaky_ReLu(self, X):
 		return np.where(X >= 0, X, X * 0.01)
 
 	def sigmoid(self, X):
 		return 1 / (1 + np.exp(X * -1))
 
+	def softmax(self, x):
+		e_x = np.exp(x - np.max(x))
+		return e_x / e_x.sum(axis=0)
+
+	def tanh(self, X):
+		return (np.exp(X) - np.exp(X * -1)) / (np.exp(X) + np.exp(X * -1))
+
+	def tanh_derivative(self, X):
+		return 1 - (self.tanh(X) ** 2)
+
 	def sigmoid_derivative(self, X):
 		return self.sigmoid(X) * (1 - self.sigmoid(X))
 
-	def softmax(self, X):
-		return np.exp(X) / sum(np.exp(X))
+	def reLu_derivative(self, X):
+		return np.where(X >= 0, 1, 0)
 
-	def softmax_derivative(self, X):
-		s = np.array(X).reshape(-1,1)
-		return np.diagflat(s) - np.dot(s, np.transpose(s))
+	def leaky_ReLu_derivative(self, X):
+		return np.where(X >= 0, 1, 0.01)
+
+	def viz_loss(self):
+		plt.plot(self.losses)
+		plt.ylabel("Loss")
+		plt.xlabel("Epoch")
+		plt.show()
 
 	def loss(self):
 		if (len(self.res) < 1):
@@ -84,6 +120,13 @@ class Multilayer_Perceptron(object):
 
 		return int(sum(res) / len(res) * 100)
 
+	def train(self, epoch=100, print_loss=True):
+		for i in range(epoch):
+			if print_loss:
+				print("Epoch ", i, "/", epoch, ", loss - ", self.loss(), sep='')
+			self.prop()
+			self.backprop()
+
 	def predict(self):
 		self.res = []
 		self.res.append(self.X)
@@ -93,13 +136,15 @@ class Multilayer_Perceptron(object):
 		for i in range(len(self.NN) - 1):
 			tmp = []
 			for j in range(len(self.NN[i])):
-				tmp.append(self.sigmoid(self.res[i].dot(self.NN[i][j]) + self.bias[i][j]))
+				f_in = self.res[i].dot(self.NN[i][j]) + self.bias[i][j]
+				tmp.append(self.activation[self.layers[i]](f_in))
 			self.res.append(pd.DataFrame(tmp).T)
 
 		last_layer = []
 
 		for i in range(len(self.y_name)):
-			tmp = self.sigmoid(self.res[-1].dot(self.NN[-1][i]) + self.bias[-1][i])
+			f_in = self.res[-1].dot(self.NN[-1][i]) + self.bias[-1][i]
+			tmp = self.activation[self.layers[-1]](f_in)
 			last_layer.append(pd.Series(tmp))
 
 		self.res.append(pd.DataFrame(last_layer).T)
@@ -129,13 +174,15 @@ class Multilayer_Perceptron(object):
 		for i in range(len(self.NN) - 1):
 			tmp = []
 			for j in range(len(self.NN[i])):
-				tmp.append(self.sigmoid(self.res[i].dot(self.NN[i][j]) + self.bias[i][j]))
+				f_in = self.res[i].dot(self.NN[i][j]) + self.bias[i][j]
+				tmp.append( self.activation[self.layers[i]](f_in) )
 			self.res.append(pd.DataFrame(tmp).T)
 
 		last_layer = []
 
 		for i in range(len(self.y_name)):
-			tmp = self.sigmoid(self.res[-1].dot(self.NN[-1][i]) + self.bias[-1][i])
+			f_in = self.res[-1].dot(self.NN[-1][i]) + self.bias[-1][i]
+			tmp = self.activation[self.layers[-1]](f_in)
 			last_layer.append(pd.Series(tmp))
 
 		self.res.append(pd.DataFrame(last_layer).T)
@@ -155,7 +202,8 @@ class Multilayer_Perceptron(object):
 				tmp.append(0.0)
 
 			for j in range(len(nn)):
-				o_k = prev_error[j] * self.sigmoid_derivative(self.res[(i + 2) * -1].dot(nn[j]) + self.bias[(i + 1) * -1][j])
+				fd_in = self.res[(i + 2) * -1].dot(nn[j]) + self.bias[(i + 1) * -1][j]
+				o_k = prev_error[j] * self.derivative[self.layers[(i + 1) * -1]](fd_in)
 				self.bias[(i + 1) * -1][j] -= sum(self.alpha * o_k)
 
 				for k in range(len(nn[j])):
@@ -166,3 +214,4 @@ class Multilayer_Perceptron(object):
 
 			prev_error = tmp
 
+		self.losses.append(self.loss())
