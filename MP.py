@@ -18,7 +18,7 @@ class Layer(enum.IntEnum):
 	softmax = 4
 
 class Multilayer_Perceptron(object):
-	def __init__(self, X, y, layers=[Layer.sigmoid, Layer.sigmoid, Layer.sigmoid] ,n_perceptrons=[20,20], batch_size=20, alpha=0.04, validator=False):
+	def __init__(self, X, y, layers=[Layer.sigmoid, Layer.sigmoid, Layer.sigmoid] ,n_perceptrons=[20,20], batch_size=20, alpha=0.04, validator=False, L1=0.0, L2=0.0):
 		self.X = X
 		self.y = y
 		self.y_all = y
@@ -33,9 +33,17 @@ class Multilayer_Perceptron(object):
 		self.valid = validator
 		self.layers = layers
 		self.losses = []
+		self.val_losses = []
+		self.results = []
+
+		self.X_test = []
+		self.y_test = []
 
 		self.activation = [self.sigmoid, self.tanh, self.reLu, self.leaky_ReLu, self.softmax]
 		self.derivative = [self.sigmoid_derivative, self.tanh_derivative, self.reLu_derivative, self.leaky_ReLu_derivative, self.sigmoid_derivative]
+
+		self.l1 = L1
+		self.l2 = L2
 
 		for i in range(len(self.y_name)):
 			self.output_layer.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons[-1]))
@@ -53,6 +61,20 @@ class Multilayer_Perceptron(object):
 
 		self.NN.append(self.output_layer)
 		self.bias.append(pd.Series(np.random.uniform(-0.5,0.5, size=len(self.y_name))))
+
+	def data_split(self, train_size=0.8):
+		X_new = self.X.sample(frac=train_size, replace=True)
+		y_new = self.y.iloc[X_new.index]
+
+		X_test = self.X.drop(X_new.index)
+		y_test = self.y.drop(y_new.index)
+
+		self.X = pd.DataFrame(X_new.values)
+		self.y_all = pd.Series(y_new.values)
+		self.y = self.y_all
+
+		self.X_test = pd.DataFrame(X_test.values)
+		self.y_test = pd.Series(y_test.values)
 
 	def scaling(self):
 		for i in self.X.columns:
@@ -87,12 +109,20 @@ class Multilayer_Perceptron(object):
 		return np.where(X >= 0, 1, 0.01)
 
 	def viz_loss(self):
-		plt.plot(self.losses)
+		plt.plot(self.results, label="results")
+		plt.plot(self.val_losses, label="value loss")
 		plt.ylabel("Loss")
 		plt.xlabel("Epoch")
+		plt.legend()
 		plt.show()
 
-	def loss(self):
+		plt.plot(self.losses, label="loss")
+		plt.ylabel("Loss")
+		plt.xlabel("Epoch")
+		plt.legend()
+		plt.show()
+
+	def val_loss(self):
 		if (len(self.res) < 1):
 			return -1
 
@@ -105,11 +135,36 @@ class Multilayer_Perceptron(object):
 			for j in range(len(y)):
 				res += (y[j] * np.log(self.res[-1][i][j])) + ((1 - y[j]) * (1 - self.res[-1][i][j]))
 
-		return (res / l) * -1
+		res = (res / l) * -1
+
+		self.val_losses.append(res)
+
+		return res
+
+	def loss(self):
+		self.results.append(self.test() / 100)
+
+		if (len(self.res) < 1):
+			return -1
+
+		res = 0.0
+		l = 0
+
+		for i in range(len(self.y_name)):
+			y = np.where(self.y_test == self.y_name[i], 1, 0)
+			l += len(y)
+			for j in range(len(y)):
+				res += (y[j] * np.log(self.res[-1][i][j])) + ((1 - y[j]) * (1 - self.res[-1][i][j]))
+
+		res = (res / l) * -1
+
+		self.losses.append(res)
+
+		return res
 
 	def test(self):
-		output = np.array(self.predict())
-		y = np.array(self.y_all)
+		output = np.array(self.predict(self.X_test))
+		y = np.array(self.y_test)
 
 		for i in range(len(y)):
 			output[i] = self.y_name.tolist().index(output[i])
@@ -123,15 +178,19 @@ class Multilayer_Perceptron(object):
 	def train(self, epoch=100, print_loss=True):
 		for i in range(epoch):
 			if print_loss:
-				print("Epoch ", i, "/", epoch, ", loss - ", self.loss(), sep='')
+				print("Epoch ", i + 1, "/", epoch, ", val_loss - %.5f"% (self.val_loss()),  ", loss - %.5f"% (self.loss()), sep='')
 			self.prop()
 			self.backprop()
 
-	def predict(self):
+	def predict(self, X=[]):
 		self.res = []
-		self.res.append(self.X)
 
-		self.res[-1] = pd.DataFrame(self.res[-1].as_matrix())
+		if (len(X) < 1):
+			X = self.X
+
+		self.res.append(X)
+
+		self.res[-1] = pd.DataFrame(self.res[-1].values)
 
 		for i in range(len(self.NN) - 1):
 			tmp = []
@@ -169,7 +228,7 @@ class Multilayer_Perceptron(object):
 		self.res.append(self.X.sample(self.b_s))
 		self.y = self.y_all.iloc[self.res[-1].index]
 
-		self.res[-1] = pd.DataFrame(self.res[-1].as_matrix())
+		self.res[-1] = pd.DataFrame(self.res[-1].values)
 
 		for i in range(len(self.NN) - 1):
 			tmp = []
@@ -209,9 +268,13 @@ class Multilayer_Perceptron(object):
 				for k in range(len(nn[j])):
 					current = self.res[(i + 2) * -1]
 					w = self.alpha * o_k * current[current.columns[k]]
-					nn[j][k] -= sum(w)
+					nn[j][k] -= sum(w) + (self.l1 * abs(nn[j][k])) + (self.l2 * nn[j][k] ** 2)
 					tmp[k] += sum(o_k * nn[j][k])
 
 			prev_error = tmp
 
-		self.losses.append(self.loss())
+	def save(self, path):
+		general = {"nn": self.NN, "y_name": self.y_name}
+		np.save(path, general)
+		print("\033[1m\033[32mModel saved to '" + path + ".npy'\033[0m")
+
