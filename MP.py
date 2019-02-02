@@ -18,7 +18,7 @@ class Layer(enum.IntEnum):
 	softmax = 4
 
 class Multilayer_Perceptron(object):
-	def __init__(self, X, y, layers=[Layer.sigmoid, Layer.sigmoid, Layer.sigmoid] ,n_perceptrons=[20,20], batch_size=20, alpha=0.04, validator=False, L1=0.0, L2=0.0):
+	def __init__(self, X, y=[], layers=[Layer.sigmoid, Layer.sigmoid, Layer.sigmoid], n_perceptrons=[20,20], batch_size=20, alpha=0.04, validator=False, L1=0.0, L2=0.0, nesterov=False):
 		self.X = X
 		self.y = y
 		self.y_all = y
@@ -35,6 +35,8 @@ class Multilayer_Perceptron(object):
 		self.losses = []
 		self.val_losses = []
 		self.results = []
+		self.momentum = []
+		self.nesterov = nesterov
 
 		self.X_test = []
 		self.y_test = []
@@ -58,8 +60,10 @@ class Multilayer_Perceptron(object):
 					tmp.append(np.random.uniform(-0.5, 0.5, size=n_perceptrons[i - 1]))
 
 			self.NN.append(tmp)
+			self.momentum.append(tmp[:])
 
 		self.NN.append(self.output_layer)
+		self.momentum.append(self.output_layer[:])
 		self.bias.append(pd.Series(np.random.uniform(-0.5,0.5, size=len(self.y_name))))
 
 	def data_split(self, train_size=0.8):
@@ -178,9 +182,14 @@ class Multilayer_Perceptron(object):
 	def train(self, epoch=100, print_loss=True):
 		for i in range(epoch):
 			if print_loss:
-				print("Epoch ", i + 1, "/", epoch, ", val_loss - %.5f"% (self.val_loss()),  ", loss - %.5f"% (self.loss()), sep='')
+				print("Epoch ", i + 1, "/", epoch, ", val_loss - %.5f"% (self.val_loss()),  ", loss - %.5f"% (self.loss()), ", result - %.2f"% self.results[-1], sep='')
 			self.prop()
 			self.backprop()
+
+	def cross_val(self, res):
+		self.y_test = np.array(res)
+
+		return self.loss()
 
 	def predict(self, X=[]):
 		self.res = []
@@ -221,7 +230,7 @@ class Multilayer_Perceptron(object):
 
 				res.append(self.y_name[label_j])
 
-		return (res)
+		return res
 
 	def prop(self):
 		self.res = []
@@ -261,20 +270,37 @@ class Multilayer_Perceptron(object):
 				tmp.append(0.0)
 
 			for j in range(len(nn)):
-				fd_in = self.res[(i + 2) * -1].dot(nn[j]) + self.bias[(i + 1) * -1][j]
+				if self.nesterov:
+					fd_in = self.res[(i + 2) * -1].dot(nn[j] + 0.9 * self.momentum[(i + 1) * -1][j]) + self.bias[(i + 1) * -1][j]
+				else:
+					fd_in = self.res[(i + 2) * -1].dot(nn[j]) + self.bias[(i + 1) * -1][j]
 				o_k = prev_error[j] * self.derivative[self.layers[(i + 1) * -1]](fd_in)
 				self.bias[(i + 1) * -1][j] -= sum(self.alpha * o_k)
 
 				for k in range(len(nn[j])):
 					current = self.res[(i + 2) * -1]
 					w = self.alpha * o_k * current[current.columns[k]]
-					nn[j][k] -= sum(w) + (self.l1 * abs(nn[j][k])) + (self.l2 * nn[j][k] ** 2)
+					if self.nesterov:
+						v = sum(w) + 0.9 * self.momentum[(i + 1) * -1][j][k]
+						nn[j][k] -= v
+						self.momentum[(i + 1) * -1][j][k] = v
+					else:
+						nn[j][k] -= sum(w) + (self.l1 * abs(nn[j][k])) + (self.l2 * nn[j][k] ** 2)
 					tmp[k] += sum(o_k * nn[j][k])
 
 			prev_error = tmp
 
 	def save(self, path):
-		general = {"nn": self.NN, "y_name": self.y_name}
+		general = {"bias": self.bias, "nn": self.NN, "y_name": self.y_name, "layers": self.layers}
 		np.save(path, general)
 		print("\033[1m\033[32mModel saved to '" + path + ".npy'\033[0m")
+
+	def loadNN(self, filename):
+		model = np.load(filename)
+		model = dict(model.tolist())
+
+		self.y_name = model['y_name']
+		self.layers = model['layers']
+		self.bias = model['bias']
+		self.NN = model['nn']
 
