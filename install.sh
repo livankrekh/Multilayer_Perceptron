@@ -1,3 +1,2 @@
-virtualenv -p python3 venv
-source venv/bin/activate
+sudo apt-get install python3-tk
 pip3 install -r requirements.txt

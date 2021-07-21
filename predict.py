@@ -5,7 +5,7 @@ import numpy as np
 
 import sys
 
-from MP import Multilayer_Perceptron, Layer
+from dl_framework.MLP import Multilayer_Perceptron, Layer
 
 if __name__ == "__main__":
 	df = pd.read_csv(sys.argv[1], header=None)
@@ -18,7 +18,7 @@ if __name__ == "__main__":
 	nn = Multilayer_Perceptron(df)
 	nn.loadNN('model.npy')
 	nn.scaling()
-	
+
 	predicts = nn.predict()
 	predict_df = pd.DataFrame({'Index':range(len(predicts)), 'Predicts':predicts})
 	predict_df.to_csv('predicts.csv', index=False)

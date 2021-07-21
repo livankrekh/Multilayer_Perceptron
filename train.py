@@ -5,7 +5,7 @@ import numpy as np
 import argparse
 import sys
 
-from MP import Multilayer_Perceptron, Layer
+from dl_framework.MLP import Multilayer_Perceptron, Layer
 
 pd.set_option('display.float_format', lambda x: '%.8f' % x)
 np.random.seed(7483)
